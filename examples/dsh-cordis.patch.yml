@@ -1,0 +1,15 @@
+# Drop-in snippet for DeepSeek Harness (and any Cordis-based DSH profile).
+# Add it to ~/.dsh/profiles/desktop/cordis.patch.yml, then restart the app or let the
+# profile hot-reload. Replace /absolute/path/to/moodle-mcp with your clone path.
+
+- insert:
+    - id: mcp-moodle
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: moodle
+        transport: stdio
+        command: node
+        args:
+          - /absolute/path/to/moodle-mcp/mcp-server.mjs
+        cwd: /absolute/path/to/moodle-mcp
+        failOnStartupError: false

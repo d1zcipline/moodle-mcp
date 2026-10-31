@@ -1,0 +1,37 @@
+{
+  "name": "moodle-mcp",
+  "version": "1.0.0",
+  "description": "MCP server and CLI for Moodle: courses, assignments and files, with workarounds for DPI/VPN networks and incomplete TLS chains",
+  "type": "module",
+  "license": "MIT",
+  "author": "d1zcipline",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "moodle",
+    "cli",
+    "education"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "moodle": "./cli.mjs",
+    "moodle-mcp": "./mcp-server.mjs"
+  },
+  "files": [
+    "mcp-server.mjs",
+    "cli.mjs",
+    "lib/",
+    "setup-credentials.sh",
+    "README.md",
+    "AGENTS.md"
+  ],
+  "scripts": {
+    "start": "node mcp-server.mjs",
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2"
+  }
+}

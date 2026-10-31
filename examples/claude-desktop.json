@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "moodle": {
+      "command": "node",
+      "args": ["/absolute/path/to/moodle-mcp/mcp-server.mjs"],
+      "env": {
+        "MOODLE_BASE_URL": "https://moodle.yourschool.edu"
+      }
+    }
+  }
+}

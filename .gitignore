@@ -1,0 +1,17 @@
+node_modules/
+npm-debug.log*
+
+# credentials and cached tokens — never commit these
+.secrets/
+
+# downloaded course material
+moodle-data/
+
+# local caches and backups
+.npm-cache/
+*.bak
+tls-chain.pem
+
+.DS_Store
+.idea/
+.vscode/
