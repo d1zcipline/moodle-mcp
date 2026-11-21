@@ -1,8 +1,10 @@
 node_modules/
 npm-debug.log*
 
-# credentials and cached tokens — never commit these
+# encrypted vault, its portable key and the cached token - never commit these
 .secrets/
+*.vault.json
+vault.key
 
 # downloaded course material
 moodle-data/

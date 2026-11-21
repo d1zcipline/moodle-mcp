@@ -24,12 +24,14 @@
     "cli.mjs",
     "lib/",
     "setup-credentials.sh",
+    "setup-credentials.ps1",
     "README.md",
     "AGENTS.md"
   ],
   "scripts": {
     "start": "node mcp-server.mjs",
-    "test": "node --test test/"
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "vault": "node cli.mjs vault"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2"

@@ -20,9 +20,10 @@ identically through MCP tools.
 1. **Read-only.** There are no tools that submit an assignment, upload a file, post to a forum or
    change a grade. Do not try to reach those endpoints by hand-editing URLs; that is outside this
    project's contract and outside the user's intent when they installed it.
-2. **Never print or echo `.secrets/`.** It contains the Moodle password, a Web Services token and a
-   cached TLS intermediate. Read them only through the library, never `cat` them into a transcript,
-   a commit, a log or a downloaded folder.
+2. **Never print or echo `.secrets/`.** It holds the encrypted vault (site URL, login, password and
+   the Web Services token) plus a cached TLS intermediate. Read the credentials only through
+   `lib/vault.mjs`, never `cat`, `type` or base64 them into a transcript, a commit, a log or a
+   downloaded folder.
 3. **Never write credentials into `moodle-data/`.** That tree is meant to be shareable course
    material; keep secrets out of it.
 4. **Quote paths.** Course, section and file names are human text with spaces, quotes and non-ASCII
@@ -40,9 +41,12 @@ node cli.mjs login    # credentials + token: prints name, user id, API function 
 If `login` prints a name, everything below works. If it fails, read the error taxonomy in §8 before
 changing anything.
 
-Credentials are file-based: `.secrets/moodle.json` with
-`{ "username", "password", "baseUrl" }`, where `baseUrl` may come from `MOODLE_BASE_URL` instead.
-Ask the human to create it (`bash setup-credentials.sh`) — never ask for a password in chat.
+Credentials are sealed in an encrypted vault: `.secrets/moodle.vault.json`, protected by DPAPI on
+Windows, the login keychain on macOS, the Secret Service on Linux, or AES-256-GCM elsewhere. Ask
+the human to run `node cli.mjs vault init` (`setup-credentials.sh` / `setup-credentials.ps1` wrap
+it) — never ask for a password in chat and never write one into a file yourself.
+`node cli.mjs vault status` reports the backend without revealing any value; `vault migrate`
+encrypts and shreds a legacy plaintext `.secrets/moodle.json`.
 
 ## 4. Configuration
 
@@ -50,7 +54,10 @@ Ask the human to create it (`bash setup-credentials.sh`) — never ask for a pas
 |---|---|---|
 | `MOODLE_BASE_URL` | unset (required) | Moodle site root, e.g. `https://moodle.yourschool.edu` |
 | `MOODLE_TZ` | system time zone | IANA zone used for due dates |
-| `MOODLE_SECRETS_DIR` | `<repo>/.secrets` | credentials + token cache |
+| `MOODLE_SECRETS_DIR` | `<repo>/.secrets` | vault + token cache |
+| `MOODLE_VAULT_BACKEND` | auto | force `dpapi` / `keychain` / `secret-service` / `aes-gcm` |
+| `MOODLE_VAULT_KEY` | unset | passphrase for the `aes-gcm` backend |
+| `MOODLE_ALLOW_HTTP` | unset | `1` allows a plain `http://` site (loopback always allowed) |
 | `MOODLE_DATA_DIR` | `<repo>/moodle-data` | downloads |
 | `MOODLE_LOCAL_ADDR` | auto `en0`/`en1` | bypass a VPN tunnel |
 | `MOODLE_NO_BIND` | unset | disable binding entirely |
@@ -131,6 +138,7 @@ node cli.mjs cm <cmid> [--json]
 node cli.mjs assign <cmid|assignid> 
 node cli.mjs files <courseid> [--json]
 node cli.mjs dump <courseid> [--no-download] [--out DIR]
+node cli.mjs vault init|status|migrate|rotate|destroy
 ```
 
 Exit codes: `0` success, `2` missing argument, `1` runtime/auth/network error. Diagnostics go to
@@ -140,11 +148,13 @@ stderr; parse stdout only.
 
 | Message contains | Meaning | Agent action |
 |---|---|---|
-| `No credentials file` | `.secrets/moodle.json` missing | ask the human to create it; do not invent credentials |
-| `No Moodle site configured` | neither `MOODLE_BASE_URL` nor `baseUrl` set | ask the human for the site URL; do not guess |
+| `No Moodle credentials stored` | the vault is empty | ask the human to run `node cli.mjs vault init`; do not invent credentials |
+| `No Moodle site configured` | neither `MOODLE_BASE_URL` nor a stored `baseUrl` | ask the human for the site URL; do not guess |
+| `Cannot decrypt the vault` / `DPAPI call failed` | vault copied from another machine or account | ask the human to re-run `vault init`; do not try to repair the ciphertext |
+| `Refusing a plain http:// site` | the site URL is not https | ask for the https URL; do not set `MOODLE_ALLOW_HTTP` yourself |
 | `Wrong Moodle username or password` | Moodle rejected the login/token | report; ask the human to check the account, do not loop |
 | `Cannot get a token: invalidservice` | mobile Web Services disabled | report; the CLI can still fall back to the cookie flow for HTML pages |
-| `invalidtoken` / `accessexception` | cached token was revoked | the client retries once automatically; if it repeats, delete `.secrets/moodle-token.json` |
+| `invalidtoken` / `accessexception` | cached token was revoked | the client retries once automatically; if it repeats, run `node cli.mjs vault destroy --yes` and then `vault init` |
 | `Cannot reach <host> … ETIMEDOUT` | VPN/tunnel drops TLS | try `MOODLE_LOCAL_ADDR`, or ask the human to switch the VPN off; verify with `cli.mjs probe` |
 | `Cannot verify the TLS certificate` | AIA intermediate fetch failed | delete `.secrets/tls-chain.pem`, retry on a working network |
 | `HTTP 403` on a file download | token not accepted / expired | re-run `cli.mjs login`, then download again |
@@ -171,7 +181,8 @@ with a short delay.
 | Path | Responsibility | Touch it when |
 |---|---|---|
 | `lib/http.mjs` | sockets, bind, TLS chain, cookies, redirects, retries | network/proxy/certificate behaviour |
-| `lib/auth.mjs` | form login, token issue/cache, re-auth | authentication flow |
+| `lib/auth.mjs` | form login, token issue/cache, re-auth, vault migration | authentication flow |
+| `lib/vault.mjs` | encrypted secret storage (DPAPI / keychain / Secret Service / AES-GCM) | storage format, new backend, migration |
 | `lib/ws.mjs` | Moodle REST calls, file download | adding a new API function |
 | `lib/course.mjs` | HTML→text, outline rendering, mirroring | output format, naming, layout |
 | `cli.mjs` | commands, flags, help | new CLI verb |
