@@ -15,7 +15,7 @@ import {
   resolveBaseUrl,
   vaultStatus,
 } from './lib/auth.mjs';
-import { HttpClient, detectLocalAddress, MISSING_SITE, normalizeBaseUrl } from './lib/http.mjs';
+import { HttpClient, detectLocalAddress, MISSING_SITE, normalizeBaseUrl, scrub } from './lib/http.mjs';
 import { writeVault, shredFile } from './lib/vault.mjs';
 import {
   dumpCourse,
@@ -127,7 +127,7 @@ async function tree() {
   };
   const sections = await ctx.ws.courseContents(courseid);
   const assignments = (await ctx.ws.assignments([courseid])).flatMap((c) => c.assignments || []);
-  if (flags.has('--json')) return out(JSON.stringify({ course, sections }, null, 2));
+  if (flags.has('--json')) return out(JSON.stringify(scrub({ course, sections }), null, 2));
   out(renderStructure(course, sections, assignments));
 }
 
@@ -245,6 +245,8 @@ async function collectCredentials() {
   let baseUrl = normalizeBaseUrl(flagValue('--base-url') || process.env.MOODLE_BASE_URL || '');
   let username = String(flagValue('--username') || process.env.MOODLE_USERNAME || '').trim();
   let password = String(process.env.MOODLE_PASSWORD || '');
+  // Do not keep it around for child processes (PowerShell, git hooks, ...).
+  delete process.env.MOODLE_PASSWORD;
 
   if (flags.has('--stdin')) {
     const [b, u, p] = await readStdinLines();

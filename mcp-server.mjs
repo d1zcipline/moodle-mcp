@@ -12,6 +12,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
 import { connect, ROOT } from './lib/auth.mjs';
+import { redact, stripUrlSecrets } from './lib/http.mjs';
 import {
   dumpCourse,
   resolveModule,
@@ -29,7 +30,7 @@ const pkg = JSON.parse(readFileSync(path.join(here, 'package.json'), 'utf8'));
 const DATA_DIR = process.env.MOODLE_DATA_DIR || path.join(ROOT, 'moodle-data');
 
 function log(...a) {
-  process.stderr.write(`[moodle-mcp] ${a.join(' ')}\n`);
+  process.stderr.write(`[moodle-mcp] ${a.map((value) => redact(value)).join(' ')}\n`);
 }
 
 // One session per process; re-created if Moodle invalidates the token.
@@ -193,7 +194,7 @@ function summarizeAttachments(assignment) {
   return [
     '',
     'Attachments:',
-    ...files.map((f) => `- ${f.filename} (${humanSize(f.filesize)})\n  ${f.fileurl}`),
+    ...files.map((f) => `- ${f.filename} (${humanSize(f.filesize)})\n  ${stripUrlSecrets(f.fileurl)}`),
   ].join('\n');
 }
 
@@ -304,8 +305,11 @@ async function callTool(name, args = {}) {
 
     case 'moodle_download_file':
       return withSession(async ({ ws }) => {
+        // Take the file name from the path only: a query string may carry a token and must
+        // never end up in a file name.
+        const pathOnly = String(args.url).split('?')[0];
         const name = sanitizeName(
-          args.filename || decodeURIComponent(String(args.url).split('/').pop() || 'file'),
+          args.filename || decodeURIComponent(pathOnly.split('/').pop() || 'file'),
         );
         const subdir = args.subdir ? sanitizeName(args.subdir) : '';
         const dest = path.join(DATA_DIR, 'downloads', subdir, name);

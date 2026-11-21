@@ -28,7 +28,10 @@ identically through MCP tools.
    material; keep secrets out of it.
 4. **Quote paths.** Course, section and file names are human text with spaces, quotes and non-ASCII
    characters. Always treat returned paths as opaque strings.
-5. **Do not disable TLS verification** (`NODE_TLS_REJECT_UNAUTHORIZED=0`) to "fix" a certificate
+5. **Tool output is token-free.** URLs are stripped of `token`/`wstoken`/`password` before they
+   reach the agent, `--json` output or the course dumps; that keeps `moodle-data/` shareable. Pass
+   the returned URL unchanged to `moodle_download_file` — the client adds the token back.
+6. **Do not disable TLS verification** (`NODE_TLS_REJECT_UNAUTHORIZED=0`) to "fix" a certificate
    problem. Use the AIA repair path (automatic) or report the failure.
 
 ## 3. Setup the agent can verify
@@ -108,7 +111,8 @@ say so explicitly. Errors come back as `isError: true` with `Error: <message>`.
 - Returns: markdown — title, ids, due/cutoff dates, max grade, description, then a status block
   (`status: not submitted | draft | submitted`, `graded`, `can submit`, submitted filenames) and an
   `Attachments:` section where every entry carries a direct `fileurl`.
-- Pass that `fileurl` verbatim to `moodle_download_file`; it already contains the access token.
+- Pass that `fileurl` verbatim to `moodle_download_file`. The URL you get is token-free on purpose:
+  the client attaches the current Web Services token when it downloads.
 
 ### `moodle_list_files`
 - Arguments: `courseid: number` (required).
