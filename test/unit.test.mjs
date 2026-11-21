@@ -11,7 +11,7 @@ import {
   renderStructure,
 } from '../lib/course.mjs';
 import { extractLoginToken } from '../lib/auth.mjs';
-import { HttpClient } from '../lib/http.mjs';
+import { HttpClient, redact, redactUrl } from '../lib/http.mjs';
 
 test('decodeEntities handles named and numeric entities', () => {
   assert.equal(decodeEntities('a &amp; b &laquo;c&raquo;'), 'a & b «c»');
@@ -123,4 +123,27 @@ test('HttpClient requires an explicitly configured site', () => {
 test('HttpClient normalises a trailing slash', () => {
   const client = new HttpClient({ baseUrl: 'https://moodle.example.edu/' });
   assert.equal(client.baseUrl, 'https://moodle.example.edu');
+});
+
+test('redactUrl drops the query string and the userinfo', () => {
+  assert.equal(
+    redactUrl('https://moodle.example.edu/login/token.php?username=u&password=p'),
+    'https://moodle.example.edu/login/token.php?<redacted>',
+  );
+  assert.equal(redactUrl('https://user:pass@moodle.example.edu/x'), 'https://<redacted>@moodle.example.edu/x');
+  assert.equal(redactUrl('not a url'), '<redacted-url>');
+});
+
+test('redact strips secrets from URLs and from key=value pairs', () => {
+  const line = 'GET https://moodle.example.edu/webservice/pluginfile.php?token=abc123&file=1 -> 200';
+  const safe = redact(line);
+  assert.ok(!safe.includes('abc123'), 'token must not survive');
+  assert.ok(safe.includes('pluginfile.php?<redacted>'), 'path is kept, query is hidden');
+  assert.ok(!redact('password=hunter2&user=x').includes('hunter2'));
+  assert.ok(!redact('wstoken=deadbeef').includes('deadbeef'));
+  assert.ok(!redact('?secret=topsecret').includes('topsecret'));
+});
+
+test('redact leaves harmless text alone', () => {
+  assert.equal(redact('GET /login/index.php -> 200'), 'GET /login/index.php -> 200');
 });
