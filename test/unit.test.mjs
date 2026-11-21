@@ -11,7 +11,7 @@ import {
   renderStructure,
 } from '../lib/course.mjs';
 import { extractLoginToken } from '../lib/auth.mjs';
-import { HttpClient, redact, redactUrl } from '../lib/http.mjs';
+import { HttpClient, redact, redactUrl, scrub, stripUrlSecrets } from '../lib/http.mjs';
 
 test('decodeEntities handles named and numeric entities', () => {
   assert.equal(decodeEntities('a &amp; b &laquo;c&raquo;'), 'a & b «c»');
@@ -146,4 +146,54 @@ test('redact strips secrets from URLs and from key=value pairs', () => {
 
 test('redact leaves harmless text alone', () => {
   assert.equal(redact('GET /login/index.php -> 200'), 'GET /login/index.php -> 200');
+});
+
+test('stripUrlSecrets removes credential parameters and keeps the rest', () => {
+  assert.equal(
+    stripUrlSecrets('https://m.example.edu/webservice/pluginfile.php/1/a.pdf?token=abc&forcedownload=1'),
+    'https://m.example.edu/webservice/pluginfile.php/1/a.pdf?forcedownload=1',
+  );
+  assert.equal(
+    stripUrlSecrets('https://m.example.edu/a.pdf?forcedownload=1'),
+    'https://m.example.edu/a.pdf?forcedownload=1',
+  );
+  assert.equal(stripUrlSecrets('https://m.example.edu/x?wstoken=abc'), 'https://m.example.edu/x');
+  assert.equal(stripUrlSecrets('https://m.example.edu/x?token=a&wstoken=b'), 'https://m.example.edu/x');
+});
+
+test('allFiles hands out token-free URLs', () => {
+  const files = allFiles([
+    {
+      section: 1,
+      name: 'S',
+      modules: [
+        {
+          id: 1,
+          name: 'M',
+          modname: 'resource',
+          contents: [
+            {
+              type: 'file',
+              filename: 'a.pdf',
+              fileurl: 'https://m.example.edu/f/a.pdf?token=secret-token&forcedownload=1',
+              filesize: 10,
+            },
+          ],
+        },
+      ],
+    },
+  ]);
+  assert.equal(files[0].fileurl.includes('secret-token'), false);
+  assert.equal(files[0].fileurl.includes('forcedownload=1'), true);
+});
+
+test('scrub walks nested data, copies it and leaves other values alone', () => {
+  const input = { a: [{ fileurl: 'https://m.example.edu/f?token=t0k&x=1' }], n: 5, b: 'plain', c: null };
+  const out = scrub(input);
+  assert.equal(out.a[0].fileurl.includes('t0k'), false);
+  assert.equal(out.a[0].fileurl.includes('x=1'), true);
+  assert.equal(out.n, 5);
+  assert.equal(out.b, 'plain');
+  assert.equal(out.c, null);
+  assert.notEqual(out, input, 'scrub returns a copy, the caller keeps the original');
 });

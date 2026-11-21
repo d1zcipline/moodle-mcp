@@ -157,7 +157,7 @@ Ready-to-copy files are in [`examples/`](examples).
 | `moodle_course_structure` | `courseid` | markdown outline with due dates and files |
 | `moodle_course_module` | `cmid` | module name/type/course, assignment due date and description |
 | `moodle_assignment` | `cmid` or `assignid`+`courseid` | description, dates, grade, attachments, submission status |
-| `moodle_list_files` | `courseid` | file list with sizes and `fileurl`s |
+| `moodle_list_files` | `courseid` | file list with sizes and token-free `fileurl`s |
 | `moodle_download_file` | `url`, `filename?`, `subdir?` | saved path and size |
 | `moodle_dump_course` | `courseid`, `download?` | mirror of the whole course on disk |
 
@@ -194,7 +194,7 @@ it is readable as text — see [Security](#security).
 | `Refusing a plain http:// site` | Use `https://`; set `MOODLE_ALLOW_HTTP=1` only for a throwaway local server. |
 | `Wrong Moodle username or password` | Moodle rejected the form **or** `login/token.php`. Check the account works in the browser. |
 | `Cannot get a token: invalidservice` | The mobile Web Services service is disabled — ask the Moodle admin, or the client falls back to cookie mode. |
-| Tools return data but file downloads 403 | The `fileurl` already carries a token; pass it unchanged instead of editing the URL. |
+| Tools return data but file downloads 403 | The `fileurl` is token-free by design; pass it unchanged to `moodle_download_file`, which attaches the token. A 403 means the token was revoked — `node cli.mjs login`. |
 | Empty `moodle_list_files` | The course may only contain pages, links and forums — check `moodle_course_structure`. |
 
 Run `MOODLE_DEBUG=1 node cli.mjs probe` for request-level detail.
@@ -222,6 +222,10 @@ call, so a long-running MCP server survives password rotations and session timeo
 - Everything the tool creates is restricted to the current user: `chmod 700/600` on POSIX and
   `icacls /inheritance:r /grant:r <user>:F` on Windows. That is defence in depth — the ciphertext is
   already bound to the account.
+- Anything that leaves the process is cleaned first: URLs in MCP tool output, `--json` payloads
+  and the `moodle-data/` dumps lose their `token` / `wstoken` / `password` parameters, so a course
+  dump stays shareable and a transcript never carries a credential. The downloader re-attaches the
+  token internally.
 - Credentials and the token only travel in request bodies. Nothing sensitive goes into a query
   string, so it cannot leak into Moodle access logs or proxy logs, and every URL printed by
   `MOODLE_DEBUG` is stripped of its query string and userinfo before it reaches stderr.
@@ -229,7 +233,7 @@ call, so a long-running MCP server survives password rotations and session timeo
   itself in *Moodle → Preferences → Security → Keys*.
 - The client never disables certificate verification and never follows links outside the configured
   Moodle host for authentication.
-- Downloads are plain HTTP GETs against `pluginfile.php` with the token embedded by Moodle.
+- Downloads are plain HTTP GETs against `pluginfile.php` with the Web Services token attached by the client.
 
 ## License
 
